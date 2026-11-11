@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fn, go, rpc, sb, syncClock, toEmail, uploadPhoto, useOnline, useRoute } from './lib'
+import { fn, go, rpc, sb, syncClock, toEmail, uploadPhoto, useOnline, useRoute, VERSION } from './lib'
 import { Act, Avatar, Loading, Toasts, useToast } from './ui'
 import Colab from './Colab.jsx'
 import Admin from './Admin.jsx'
@@ -85,6 +85,7 @@ function Login() {
       {err && <p className="err" role="alert">{err}</p>}
       <Act className="btn primary big block" type="submit" onClick={submit}>Entrar</Act>
       <p className="muted small">Esqueceu a senha? Peça ao administrador para redefinir.</p>
+      <p className="muted small">{VERSION}</p>
     </form></div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import QRCode from 'qrcode'
-import { dt, go, pts, sb, useLive } from './lib'
+import { dt, go, pts, sb, useLive, VERSION } from './lib'
 import { AuctionClock, Avatar, Loading, Photo } from './ui'
 import { RankList, useEventData } from './Colab.jsx'
 import { logout, Wordmark } from './App.jsx'
@@ -50,6 +50,7 @@ export default function Telao({ me }) {
 
 const Tools = ({ me, full }) => (
   <div className="t-tools">
+    <span className="chip">{VERSION}</span>
     <button className="btn sm" onClick={full}>Tela cheia</button>
     {me.role === 'admin' ? <button className="btn sm" onClick={() => go('admin')}>Voltar ao painel</button> : <button className="btn sm" onClick={logout}>Sair</button>}
   </div>

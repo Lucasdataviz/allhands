@@ -5,6 +5,7 @@ const URL = 'https://okttsqsvbltnunvnzksw.supabase.co'
 // Chave pública (anon): pode ficar no navegador. Quem protege os dados são as permissões do banco.
 const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rdHRzcXN2Ymx0bnVudm56a3N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ0MDIzMjQsImV4cCI6MjEwOTk3ODMyNH0.s3ywO8AH4A4i2ShjI6V05B4FQASnH_BRvWNKgPHzQFc'
 export const sb = createClient(URL, KEY, { realtime: { params: { eventsPerSecond: 20 } } })
+export const VERSION = 'v3 · 11/11 15h30'
 export const DOMAIN = 'allhands.local'
 export const toEmail = (u) => `${String(u).trim().toLowerCase()}@${DOMAIN}`
 

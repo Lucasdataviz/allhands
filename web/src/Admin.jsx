@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { dOnly, dt, fn, go, pts, q, rpc, sb, STATUS, useLive } from './lib'
+import { dOnly, dt, fn, pts, q, rpc, sb, STATUS, useLive, VERSION } from './lib'
 import { Act, Avatar, Coin, Confirm, Demo, Empty, FormModal, Loading, Modal, useToast } from './ui'
 import { logout, Wordmark } from './App.jsx'
 import { Auctions, Prizes, QuizzesAdmin, Reports } from './AdminGame.jsx'
@@ -45,7 +45,7 @@ export default function Admin({ me, activeEvent }) {
         <div className="hide-sm" style={{ padding: '4px 10px 16px' }}><Wordmark logo={ev?.logo_url} /><p className="eyebrow" style={{ marginTop: 8 }}>Painel administrativo</p></div>
         {NAV.map(([k, label]) => <button key={k} className={`nav ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}>{label}{k === 'leiloes' && d.live && <span className="chip live">ao vivo</span>}</button>)}
         <div className="grow hide-sm" />
-        <div className="hide-sm stack tight" style={{ padding: 10 }}><span className="small"><b>{me.full_name}</b></span><button className="btn sm" onClick={logout}>Sair</button></div>
+        <div className="hide-sm stack tight" style={{ padding: 10 }}><span className="small"><b>{me.full_name}</b></span><span className="muted small">{VERSION}</span><button className="btn sm" onClick={logout}>Sair</button></div>
       </aside>
       <main className="main">
         <div className="row between wrap noprint" style={{ marginBottom: 18 }}>
