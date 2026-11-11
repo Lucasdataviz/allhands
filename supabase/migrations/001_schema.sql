@@ -198,7 +198,8 @@ create table bids (
   auction_id uuid not null references auctions(id) on delete cascade,
   round int not null default 1,
   user_id uuid not null references profiles(id),
-  amount int not null check (amount > 0),
+  amount int not null check (amount > 0),  -- quanto a pessoa somou neste lance
+  total int,                               -- total acumulado dela no leilão após este lance
   voided boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -440,7 +441,8 @@ end $$;
 
 create function place_bid(p_auction uuid, p_amount int) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare a auctions; p prizes; me profiles; w wallets; ev events; v_min int; v_won int; v_free int;
+-- Lances somam por pessoa: p_amount é quanto ela acrescenta; lidera quem tiver o maior total.
+declare a auctions; p prizes; me profiles; w wallets; ev events; v_min int; v_won int; v_free int; v_mine int; v_total int;
 begin
   select * into me from profiles where id = auth.uid();
   if me.id is null or not me.active or me.role <> 'colaborador' then perform _fail('sem_permissao', 'Apenas colaboradores ativos podem dar lances.'); end if;
@@ -461,25 +463,34 @@ begin
       return jsonb_build_object('ok', false, 'code', 'limite_premios', 'message', 'Você já atingiu o limite de prêmios deste evento.');
     end if;
   end if;
-  v_min := case when a.current_bid is null then a.start_price else a.current_bid + a.min_increment end;
-  if p_amount is null or p_amount < v_min then
-    return jsonb_build_object('ok', false, 'code', 'lance_baixo', 'message', 'Você foi superado. O lance mínimo agora é ' || v_min || '.', 'min', v_min);
+  if p_amount is null or p_amount <= 0 then return jsonb_build_object('ok', false, 'code', 'lance_baixo', 'message', 'Informe um valor maior que zero.'); end if;
+  select coalesce(sum(amount), 0) into v_mine from bids where auction_id = a.id and round = a.round and user_id = me.id and not voided;
+  v_total := v_mine + p_amount;
+  if a.current_bidder = me.id then
+    if p_amount < a.min_increment then
+      return jsonb_build_object('ok', false, 'code', 'lance_baixo', 'message', 'O aumento mínimo é ' || a.min_increment || '.', 'min_add', a.min_increment);
+    end if;
+  else
+    v_min := case when a.current_bid is null then a.start_price else a.current_bid + a.min_increment end;
+    if v_total < v_min then
+      return jsonb_build_object('ok', false, 'code', 'lance_baixo', 'message', 'Para assumir a liderança seu total precisa chegar a ' || v_min || '. Some pelo menos ' || (v_min - v_mine) || '.', 'min_add', v_min - v_mine);
+    end if;
   end if;
   select * into w from wallets where event_id = a.event_id and user_id = me.id for update;
   if not found then return jsonb_build_object('ok', false, 'code', 'sem_carteira', 'message', 'Você não participa deste evento.'); end if;
-  -- Quem já lidera pode aumentar o próprio lance: a reserva antiga conta como disponível.
+  -- Só o líder tem pontos reservados (o total dele). Quem já lidera reaproveita a própria reserva.
   v_free := w.balance - w.reserved + case when a.current_bidder = me.id then a.current_bid else 0 end;
-  if v_free < p_amount then
-    return jsonb_build_object('ok', false, 'code', 'saldo_insuficiente', 'message', 'Pontos insuficientes. Disponível: ' || v_free || '.', 'available', v_free);
+  if v_free < v_total then
+    return jsonb_build_object('ok', false, 'code', 'saldo_insuficiente', 'message', 'Pontos insuficientes: seu total iria a ' || v_total || ' e você tem ' || v_free || '.', 'available', v_free);
   end if;
   perform _release_leader(a);
-  update wallets set reserved = reserved + p_amount where event_id = a.event_id and user_id = me.id;
-  insert into bids (auction_id, round, user_id, amount) values (a.id, a.round, me.id, p_amount);
-  update auctions set current_bid = p_amount, current_bidder = me.id, bid_count = bid_count + 1,
+  update wallets set reserved = reserved + v_total where event_id = a.event_id and user_id = me.id;
+  insert into bids (auction_id, round, user_id, amount, total) values (a.id, a.round, me.id, p_amount, v_total);
+  update auctions set current_bid = v_total, current_bidder = me.id, bid_count = bid_count + 1,
     participant_count = (select count(distinct user_id) from bids where auction_id = a.id and round = a.round and not voided),
     ends_at = case when mode = 'tempo' and ends_at - now() < interval '10 seconds' then now() + interval '10 seconds' else ends_at end
     where id = a.id;
-  return jsonb_build_object('ok', true, 'amount', p_amount);
+  return jsonb_build_object('ok', true, 'amount', p_amount, 'total', v_total);
 end $$;
 
 create function admin_auction_action(p_auction uuid, p_action text, p_reason text default null) returns void

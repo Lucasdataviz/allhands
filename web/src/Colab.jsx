@@ -299,7 +299,11 @@ function BidRoom({ me, d, wallet }) {
   const [confirm, setConfirm] = useState(null); const [custom, setCustom] = useState('')
   const iLead = a.current_bidder === me.id
   const free = wallet.balance - wallet.reserved + (iLead ? a.current_bid ?? 0 : 0) // ao aumentar o próprio lance, a reserva antiga volta
-  const min = a.current_bid == null ? a.start_price : a.current_bid + a.min_increment
+  // Lances somam por pessoa: o valor enviado é quanto acrescentar ao próprio total.
+  const [myBids] = useLive('bids', (t) => t.select('amount').eq('auction_id', a.id).eq('round', a.round).eq('user_id', me.id).eq('voided', false), [a.id, a.round, me.id])
+  const mine = (myBids ?? []).reduce((x, b) => x + b.amount, 0)
+  const minTotal = a.current_bid == null ? a.start_price : a.current_bid + a.min_increment
+  const min = iLead ? a.min_increment : Math.max(1, minTotal - mine)
   const isDonor = p?.donor_id === me.id
   const wasLeader = useRef(iLead); const [lost, setLost] = useState(false)
   useEffect(() => {
@@ -310,14 +314,14 @@ function BidRoom({ me, d, wallet }) {
   const paused = a.status === 'pausado'
   const send = async (amount) => {
     const r = await rpc('place_bid', { p_auction: a.id, p_amount: amount })
-    if (r.ok) { toast(`Lance de ${pts(amount)} pts registrado. Você lidera!`, 'ok'); setCustom('') } else toast(r.message, 'bad')
+    if (r.ok) { toast(`+${pts(amount)} pts. Seu total é ${pts(r.total)} e você lidera!`, 'ok'); setCustom('') } else toast(r.message, 'bad')
   }
   const ask = (amount) => {
-    if (!Number.isFinite(amount) || amount < min) return toast(`O lance mínimo agora é ${pts(min)} pts.`, 'bad')
-    if (amount > free) return toast(`Você tem ${pts(free)} pts disponíveis.`, 'bad')
+    if (!Number.isFinite(amount) || amount < min) return toast(`Some pelo menos ${pts(min)} pts.`, 'bad')
+    if (mine + amount > free) return toast(`Seu total iria a ${pts(mine + amount)} pts e você tem ${pts(free)}.`, 'bad')
     setConfirm(amount)
   }
-  const quick = [[min, 'Mínimo'], [min + a.min_increment, '+1 passo'], [min + 4 * a.min_increment, '+4 passos']]
+  const quick = [[min, iLead ? 'Mínimo' : 'Para liderar'], [min + a.min_increment, '+1 passo'], [min + 4 * a.min_increment, '+4 passos']]
   const can = !paused && !isDonor
   return (
     <>
@@ -339,19 +343,20 @@ function BidRoom({ me, d, wallet }) {
       </div>
       {can && (
         <section className="stack">
-          <div className="row between"><h2>{iLead ? 'Aumentar meu lance' : 'Dar lance'}</h2><span className="muted small">Disponível: <b>{pts(free)} pts</b></span></div>
-          <div className="quick">{quick.map(([v, label], i) => <button key={i} className={`btn ${i === 0 ? 'hot' : ''}`} disabled={v > free} onClick={() => ask(v)}><span className="num">{pts(v)}</span><small>{label}</small></button>)}</div>
-          <div className="row"><input className="input" inputMode="numeric" placeholder={`Outro valor (mín. ${pts(min)})`} value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))} /><button className="btn primary" disabled={!custom} onClick={() => ask(Number(custom))}>Dar lance</button></div>
-          {free < min && <p className="err">Seu saldo disponível não alcança o lance mínimo deste leilão.</p>}
+          <div className="row between"><h2>{iLead ? 'Aumentar meu lance' : 'Dar lance'}</h2><span className="muted small">Você tem <b>{pts(free)} pts</b></span></div>
+          <p className="muted small">Seus lances somam. {mine > 0 ? <>Você já colocou <b>{pts(mine)} pts</b> neste leilão.</> : 'O valor que você enviar entra no seu total neste leilão.'}</p>
+          <div className="quick">{quick.map(([v, label], i) => <button key={i} className={`btn ${i === 0 ? 'hot' : ''}`} disabled={mine + v > free} onClick={() => ask(v)}><span className="num">+{pts(v)}</span><small>{label}</small></button>)}</div>
+          <div className="row"><input className="input" inputMode="numeric" placeholder={`Somar outro valor (mín. ${pts(min)})`} value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))} /><button className="btn primary" disabled={!custom} onClick={() => ask(Number(custom))}>Somar</button></div>
+          {free < mine + min && <p className="err">Seus pontos não alcançam o total necessário para liderar este leilão.</p>}
         </section>
       )}
       <section className="stack tight"><h3>Últimos lances</h3>
-        {d.bids.length === 0 ? <p className="muted small">Os lances aparecem aqui em tempo real.</p> : <div className="bidfeed">{d.bids.map((b) => <div key={b.id} className="row between"><span className="row"><Avatar p={d.pmap.get(b.user_id)} size={26} />{b.user_id === me.id ? 'Você' : d.pmap.get(b.user_id)?.full_name}</span><Coin n={b.amount} /></div>)}</div>}
+        {d.bids.length === 0 ? <p className="muted small">Os lances aparecem aqui em tempo real.</p> : <div className="bidfeed">{d.bids.map((b) => <div key={b.id} className="row between"><span className="row"><Avatar p={d.pmap.get(b.user_id)} size={26} />{b.user_id === me.id ? 'Você' : d.pmap.get(b.user_id)?.full_name}</span><span><span className="muted small">+{pts(b.amount)} → </span><Coin n={b.total ?? b.amount} /></span></div>)}</div>}
       </section>
       {confirm != null && (
         <Modal title="Confirmar lance" onClose={() => setConfirm(null)}>
-          <div style={{ textAlign: 'center' }}><div className="num coin" style={{ fontSize: '3.6rem', lineHeight: 1 }}>{pts(confirm)}</div><p className="muted">pontos em “{p?.name}”</p></div>
-          <p className="muted small">Os pontos ficam reservados enquanto você lidera e voltam na hora se alguém superar o seu lance.</p>
+          <div style={{ textAlign: 'center' }}><div className="num coin" style={{ fontSize: '3.6rem', lineHeight: 1 }}>+{pts(confirm)}</div><p className="muted">pontos em “{p?.name}”</p><p>Seu total neste leilão passa a <b>{pts(mine + confirm)} pts</b>.</p></div>
+          <p className="muted small">O total fica reservado enquanto você lidera e volta na hora se alguém passar você. Para retomar a liderança, você soma mais ao que já colocou.</p>
           <Act className="btn hot big block" onClick={async () => { await send(confirm); setConfirm(null) }}>Confirmar lance</Act>
           <button className="btn block" onClick={() => setConfirm(null)}>Cancelar</button>
         </Modal>

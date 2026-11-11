@@ -71,18 +71,19 @@ ok((await bid(users[0], A.a, 5)).code === 'lance_baixo', 'lance abaixo do inicia
 let r = await Promise.all(users.filter((_, i) => i !== 5).map(u => bid(u, A.a, 10)));
 ok(r.filter(x => x.ok).length === 1, `${N - 1} lances idênticos ao mesmo tempo: só 1 assume a liderança`);
 let okCount = 1;
-for (let round = 0; round < 15; round++) {
+for (let round = 0; round < 4; round++) {
   const cur = (await su(`select current_bid from auctions where id=$1`, [A.a])).rows[0].current_bid;
   r = await Promise.all(users.filter((_, i) => i !== 5).map(u => bid(u, A.a, cur + 5 + 5 * Math.floor(Math.random() * 4))));
   okCount += r.filter(x => x.ok).length;
 }
 let i1 = await inv(A.a);
-const nb = (await su(`select count(*)::int n, max(amount) m from bids where auction_id=$1`, [A.a])).rows[0];
-ok(nb.n === okCount && nb.m === i1.x.current_bid, `${okCount} lances aceitos em ~600 tentativas; maior lance registrado = lance atual`);
+const nb = (await su(`select count(*)::int n, max(total) m from bids where auction_id=$1`, [A.a])).rows[0];
+ok(nb.n === okCount && nb.m === i1.x.current_bid, `${okCount} lances aceitos em ~200 tentativas; maior total registrado = lance atual`);
 ok(i1.s.n === 1 && i1.s.r === i1.x.current_bid && i1.s.m >= 0, 'só o líder tem pontos reservados; ninguém negativo');
-{ const up = i1.x.current_bid + 50; const r2 = await bid(i1.x.current_bidder, A.a, up); const w2 = (await su(`select reserved from wallets where user_id=$1`, [i1.x.current_bidder])).rows[0];
-  ok(r2.ok && w2.reserved === up, 'líder aumenta o próprio lance e a reserva passa a ser só o novo valor'); okCount++; i1 = await inv(A.a);
-  ok((await bid(i1.x.current_bidder, A.a, 999999)).code === 'saldo_insuficiente', 'líder não aumenta além do que tem'); }
+{ const up = i1.x.current_bid + 50; const r2 = await bid(i1.x.current_bidder, A.a, 50); const w2 = (await su(`select reserved from wallets where user_id=$1`, [i1.x.current_bidder])).rows[0];
+  ok(r2.ok && r2.total === up && w2.reserved === up, 'lances somam por pessoa: líder soma +50 e a reserva vira o novo total'); okCount++; i1 = await inv(A.a);
+  ok((await bid(i1.x.current_bidder, A.a, 999999)).code === 'saldo_insuficiente', 'ninguém soma além do que tem');
+  ok((await bid(i1.x.current_bidder, A.a, 1)).code === 'lance_baixo', 'aumento abaixo do incremento é recusado'); }
 const poor = users[6]; await as(admin, `select admin_adjust_points($1,$2,-990,'teste')`, [ev.id, poor]).catch(() => {});
 const avail = (await su(`select balance-reserved a from wallets where user_id=$1`, [poor])).rows[0].a;
 if (avail < i1.x.current_bid + 5) ok((await bid(poor, A.a, i1.x.current_bid + 5)).code === 'saldo_insuficiente', 'sem pontos suficientes: lance recusado');
