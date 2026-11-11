@@ -440,7 +440,7 @@ end $$;
 
 create function place_bid(p_auction uuid, p_amount int) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare a auctions; p prizes; me profiles; w wallets; ev events; v_min int; v_won int;
+declare a auctions; p prizes; me profiles; w wallets; ev events; v_min int; v_won int; v_free int;
 begin
   select * into me from profiles where id = auth.uid();
   if me.id is null or not me.active or me.role <> 'colaborador' then perform _fail('sem_permissao', 'Apenas colaboradores ativos podem dar lances.'); end if;
@@ -455,7 +455,6 @@ begin
   select * into ev from events where id = a.event_id;
   select * into p from prizes where id = a.prize_id;
   if p.donor_id = me.id then return jsonb_build_object('ok', false, 'code', 'doador', 'message', 'Você ofereceu este prêmio e não pode dar lance nele.'); end if;
-  if a.current_bidder = me.id then return jsonb_build_object('ok', false, 'code', 'ja_lidera', 'message', 'Você já está liderando.'); end if;
   if ev.max_prizes_per_person is not null then
     select count(*) into v_won from auctions where event_id = a.event_id and winner_id = me.id and result = 'arrematado';
     if v_won >= ev.max_prizes_per_person then
@@ -468,8 +467,10 @@ begin
   end if;
   select * into w from wallets where event_id = a.event_id and user_id = me.id for update;
   if not found then return jsonb_build_object('ok', false, 'code', 'sem_carteira', 'message', 'Você não participa deste evento.'); end if;
-  if w.balance - w.reserved < p_amount then
-    return jsonb_build_object('ok', false, 'code', 'saldo_insuficiente', 'message', 'Pontos insuficientes. Disponível: ' || (w.balance - w.reserved) || '.', 'available', w.balance - w.reserved);
+  -- Quem já lidera pode aumentar o próprio lance: a reserva antiga conta como disponível.
+  v_free := w.balance - w.reserved + case when a.current_bidder = me.id then a.current_bid else 0 end;
+  if v_free < p_amount then
+    return jsonb_build_object('ok', false, 'code', 'saldo_insuficiente', 'message', 'Pontos insuficientes. Disponível: ' || v_free || '.', 'available', v_free);
   end if;
   perform _release_leader(a);
   update wallets set reserved = reserved + p_amount where event_id = a.event_id and user_id = me.id;

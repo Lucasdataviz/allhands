@@ -80,7 +80,9 @@ let i1 = await inv(A.a);
 const nb = (await su(`select count(*)::int n, max(amount) m from bids where auction_id=$1`, [A.a])).rows[0];
 ok(nb.n === okCount && nb.m === i1.x.current_bid, `${okCount} lances aceitos em ~600 tentativas; maior lance registrado = lance atual`);
 ok(i1.s.n === 1 && i1.s.r === i1.x.current_bid && i1.s.m >= 0, 'só o líder tem pontos reservados; ninguém negativo');
-ok((await bid(i1.x.current_bidder, A.a, i1.x.current_bid + 50)).code === 'ja_lidera', 'líder não cobre o próprio lance');
+{ const up = i1.x.current_bid + 50; const r2 = await bid(i1.x.current_bidder, A.a, up); const w2 = (await su(`select reserved from wallets where user_id=$1`, [i1.x.current_bidder])).rows[0];
+  ok(r2.ok && w2.reserved === up, 'líder aumenta o próprio lance e a reserva passa a ser só o novo valor'); okCount++; i1 = await inv(A.a);
+  ok((await bid(i1.x.current_bidder, A.a, 999999)).code === 'saldo_insuficiente', 'líder não aumenta além do que tem'); }
 const poor = users[6]; await as(admin, `select admin_adjust_points($1,$2,-990,'teste')`, [ev.id, poor]).catch(() => {});
 const avail = (await su(`select balance-reserved a from wallets where user_id=$1`, [poor])).rows[0].a;
 if (avail < i1.x.current_bid + 5) ok((await bid(poor, A.a, i1.x.current_bid + 5)).code === 'saldo_insuficiente', 'sem pontos suficientes: lance recusado');

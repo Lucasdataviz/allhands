@@ -297,8 +297,8 @@ function BidRoom({ me, d, wallet }) {
   const toast = useToast()
   const a = d.live; const p = d.prizeMap.get(a.prize_id); const leader = d.pmap.get(a.current_bidder)
   const [confirm, setConfirm] = useState(null); const [custom, setCustom] = useState('')
-  const free = wallet.balance - wallet.reserved
   const iLead = a.current_bidder === me.id
+  const free = wallet.balance - wallet.reserved + (iLead ? a.current_bid ?? 0 : 0) // ao aumentar o próprio lance, a reserva antiga volta
   const min = a.current_bid == null ? a.start_price : a.current_bid + a.min_increment
   const isDonor = p?.donor_id === me.id
   const wasLeader = useRef(iLead); const [lost, setLost] = useState(false)
@@ -318,7 +318,7 @@ function BidRoom({ me, d, wallet }) {
     setConfirm(amount)
   }
   const quick = [[min, 'Mínimo'], [min + a.min_increment, '+1 passo'], [min + 4 * a.min_increment, '+4 passos']]
-  const can = !paused && !iLead && !isDonor
+  const can = !paused && !isDonor
   return (
     <>
       <div className="row between"><h1>Sala de lances</h1><span className={`chip ${paused ? '' : 'live'}`}>{paused ? 'Pausado' : 'Ao vivo'}</span></div>
@@ -331,7 +331,7 @@ function BidRoom({ me, d, wallet }) {
             <div style={{ textAlign: 'right' }}><div className="eyebrow">{a.mode === 'tempo' ? 'Tempo' : 'Encerramento'}</div><AuctionClock a={a} className="num" onZero={() => sb.rpc('close_expired_auctions')} />{a.mode === 'manual' && <div className="muted small">pelo apresentador</div>}</div>
           </div>
           {leader ? <div className="row"><Avatar p={leader} size={36} /><div className="grow"><b>{iLead ? 'Você' : leader.full_name}</b><span className="muted small"> lidera · {a.participant_count} {a.participant_count === 1 ? 'participante' : 'participantes'}</span></div></div> : <p className="muted">Ninguém deu lance ainda. Abra o leilão!</p>}
-          {iLead && <div className="leadbanner win">Você está na frente. Seus {pts(a.current_bid)} pts ficam reservados.</div>}
+          {iLead && <div className="leadbanner win">Você está na frente. Seus {pts(a.current_bid)} pts ficam reservados. Se quiser, pode aumentar o seu lance.</div>}
           {lost && !iLead && <div className="leadbanner lost">Você foi superado! Seus pontos já voltaram para a carteira.</div>}
           {isDonor && <div className="leadbanner">Este prêmio foi oferecido por você, então você não dá lance nele.</div>}
           {paused && <div className="leadbanner">O apresentador pausou o leilão. Aguarde.</div>}
@@ -339,7 +339,7 @@ function BidRoom({ me, d, wallet }) {
       </div>
       {can && (
         <section className="stack">
-          <div className="row between"><h2>Dar lance</h2><span className="muted small">Disponível: <b>{pts(free)} pts</b></span></div>
+          <div className="row between"><h2>{iLead ? 'Aumentar meu lance' : 'Dar lance'}</h2><span className="muted small">Disponível: <b>{pts(free)} pts</b></span></div>
           <div className="quick">{quick.map(([v, label], i) => <button key={i} className={`btn ${i === 0 ? 'hot' : ''}`} disabled={v > free} onClick={() => ask(v)}><span className="num">{pts(v)}</span><small>{label}</small></button>)}</div>
           <div className="row"><input className="input" inputMode="numeric" placeholder={`Outro valor (mín. ${pts(min)})`} value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))} /><button className="btn primary" disabled={!custom} onClick={() => ask(Number(custom))}>Dar lance</button></div>
           {free < min && <p className="err">Seu saldo disponível não alcança o lance mínimo deste leilão.</p>}
