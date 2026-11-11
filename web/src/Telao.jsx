@@ -104,10 +104,10 @@ function Auction({ d }) {
     <div className="t-auction">
       <Photo src={p?.photo_url} name={p?.name} />
       <div className="t-right">
-        <div className="stack tight"><p className="eyebrow">Em leilão agora{donor ? ` · oferecido por ${donor}` : ''}</p><h1 style={{ fontSize: '3.6em' }}>{p?.name}</h1>{p?.description && <p className="muted" style={{ fontSize: '1.2em' }}>{p.description}</p>}</div>
+        <div className="stack tight"><p className="eyebrow">Em leilão agora{donor ? ` · oferecido por ${donor}` : ''}</p><h1 style={{ fontSize: '3.2em' }}>{p?.name}</h1>{p?.description && <p className="muted" style={{ fontSize: '1.2em' }}>{p.description}</p>}</div>
         <div><p className="eyebrow">{a.current_bid ? 'Maior lance' : 'Lance inicial'}</p><div key={a.current_bid ?? 0} className="num t-bid pop">{pts(a.current_bid ?? a.start_price)}<small>pts</small></div></div>
         <div style={{ alignSelf: 'center' }}>
-          {leader ? <div key={a.current_bidder + a.current_bid} className="t-leader new"><Avatar p={leader} size={96} /><div><p className="eyebrow">Na liderança</p><b style={{ fontFamily: 'var(--display)', fontSize: '2.4em', lineHeight: 1 }}>{leader.full_name}</b></div></div>
+          {leader ? <div key={a.current_bidder + a.current_bid} className="t-leader new"><Avatar p={leader} size={Math.round(Math.min(window.innerHeight * 0.1, 96))} /><div><p className="eyebrow">Na liderança</p><b style={{ fontFamily: 'var(--display)', fontSize: '2.4em', lineHeight: 1 }}>{leader.full_name}</b></div></div>
             : <div className="t-leader"><b style={{ fontSize: '1.6em' }}>Quem abre os lances?</b></div>}
         </div>
         <div className="row between" style={{ alignItems: 'end' }}>
